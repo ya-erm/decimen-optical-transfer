@@ -4,21 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Optical Transfer — send</title>
+    <meta name="theme-color" content="#121009" />
+    <link rel="manifest" href="../manifest.webmanifest" />
     <link rel="stylesheet" href="../shared/style.css" />
   </head>
   <body>
     <h1>DECIMEN <small>— Fountain QR File Transfer</small></h1>
-    <div class="hint" id="specs">loading payload…</div>
+    <label class="file-picker">
+      <span>Choose file</span>
+      <input id="file-input" type="file" />
+    </label>
+    <div class="hint" id="specs">Choose any file to start the optical stream</div>
     <details class="settings">
       <summary>Settings</summary>
       <div class="row">
-        <label>
-          payload
-          <select id="cfg-payload">
-            <option value="../success.png" selected>512 KB image</option>
-            <option value="../success-2mb.png">2 MB image</option>
-          </select>
-        </label>
         <label>
           tx fps
           <select id="cfg-fps">

@@ -47,6 +47,30 @@ button {
   font-weight: 700;
   cursor: pointer;
 }
+.file-picker,
+.download {
+  font: inherit;
+  color: #121009;
+  background: #ffb257;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+.file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+}
+#result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
 .stage {
   background: #fff;
   padding: 20px;

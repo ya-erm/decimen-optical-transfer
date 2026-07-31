@@ -14,37 +14,37 @@
 
 import QRCode from "qrcode";
 import { LTEncoder } from "../shared/fountain";
-import { HEADER_LEN, fnv1a, packFrame, type FrameHeader } from "../shared/protocol";
+import {
+  HEADER_LEN,
+  fnv1a,
+  packFile,
+  packFrame,
+  type FrameHeader,
+} from "../shared/protocol";
+import "../shared/register-sw";
 
 const MARGIN = 4; // quiet-zone modules
 const LOOKAHEAD = 3;
 
 const canvas = document.getElementById("qr") as HTMLCanvasElement;
 const specs = document.getElementById("specs")!;
-const cfgPayload = document.getElementById("cfg-payload") as HTMLSelectElement;
+const fileInput = document.getElementById("file-input") as HTMLInputElement;
 const cfgFps = document.getElementById("cfg-fps") as HTMLSelectElement;
 const cfgBytes = document.getElementById("cfg-bytes") as HTMLSelectElement;
 const cfgEcc = document.getElementById("cfg-ecc") as HTMLSelectElement;
 const cfgSize = document.getElementById("cfg-size") as HTMLInputElement;
 
-const payloadCache = new Map<string, Uint8Array>();
+let selectedFile: File | null = null;
 let generation = 0; // bumped on every restart; stale loops see it and die
 
-async function loadPayload(url: string): Promise<Uint8Array | null> {
-  const hit = payloadCache.get(url);
-  if (hit) return hit;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  payloadCache.set(url, bytes);
-  return bytes;
-}
-
 async function main() {
-  for (const el of [cfgPayload, cfgFps, cfgBytes, cfgEcc, cfgSize]) {
+  fileInput.addEventListener("change", () => {
+    selectedFile = fileInput.files?.[0] ?? null;
+    void startStream();
+  });
+  for (const el of [cfgFps, cfgBytes, cfgEcc, cfgSize]) {
     el.addEventListener("change", () => void startStream());
   }
-  await startStream();
   try {
     await (navigator as Navigator & { wakeLock?: { request(t: "screen"): Promise<unknown> } })
       .wakeLock?.request("screen");
@@ -55,12 +55,18 @@ async function main() {
 
 async function startStream() {
   const gen = ++generation;
-  const payload = await loadPayload(cfgPayload.value);
-  if (!payload) {
-    specs.textContent = `✗ couldn't load ${cfgPayload.value}`;
+  if (!selectedFile) {
+    specs.textContent = "Choose any file to start the optical stream";
     return;
   }
-  if (gen !== generation) return; // superseded while fetching
+  specs.textContent = `Reading ${selectedFile.name}…`;
+  const fileBytes = new Uint8Array(await selectedFile.arrayBuffer());
+  const payload = packFile({
+    name: selectedFile.name,
+    type: selectedFile.type || "application/octet-stream",
+    bytes: fileBytes,
+  });
+  if (gen !== generation) return; // superseded while reading
   const txFps = Number(cfgFps.value);
   const frameBytes = Number(cfgBytes.value);
   const ecc = cfgEcc.value as "L" | "M" | "Q" | "H";
@@ -68,6 +74,13 @@ async function startStream() {
 
   const sessionId = (Math.floor(Math.random() * 0xffff) + 1) & 0xffff;
   const blockLen = frameBytes - HEADER_LEN;
+  const k = Math.ceil(payload.length / blockLen);
+  if (k > 0xffff) {
+    specs.textContent =
+      `✗ ${selectedFile.name} is too large for this frame size ` +
+      `(maximum ${Math.floor((blockLen * 0xffff) / 1024 / 1024)} MB)`;
+    return;
+  }
   const encoder = new LTEncoder(payload, blockLen, sessionId);
   const header: FrameHeader = {
     sessionId,
@@ -112,7 +125,7 @@ async function startStream() {
       sizeCanvas();
       specs.textContent =
         `${txFps} FPS · ${frameBytes} bytes per frame · V${version} · ECC ${ecc} · ` +
-        `${Math.round(payload.length / 1024)} KB payload · K=${encoder.k}`;
+        `${selectedFile!.name} · ${formatBytes(fileBytes.length)} · K=${encoder.k}`;
     }
     const size = qr.modules.size;
     const data = qr.modules.data;
@@ -162,6 +175,12 @@ async function startStream() {
     if (now - nextAt > 3 * interval) nextAt = now + interval; // fell behind — don't burst
   };
   requestAnimationFrame(tick);
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 
 void main();
