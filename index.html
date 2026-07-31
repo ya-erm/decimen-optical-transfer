@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Optical Transfer — fountain-coded QR file transfer</title>
+    <title data-i18n="home.title">Optical Transfer — fountain-coded QR file transfer</title>
     <meta name="theme-color" content="#121009" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon-v5.png" type="image/png" />
@@ -12,29 +12,36 @@
   </head>
   <body class="home-page">
     <main class="home-shell">
-      <h1>DECIMEN <small>— Fountain QR File Transfer</small></h1>
-      <p class="hint">
+      <h1>DECIMEN <small data-i18n="brand.tagline">— Fountain QR File Transfer</small></h1>
+      <p class="hint" data-i18n="home.intro">
       Send a file between two devices using nothing but a screen and a camera.
       Choose the role of this device.
       </p>
-      <nav class="home-actions" aria-label="Transfer actions">
+      <nav class="home-actions" aria-label="Transfer actions" data-i18n-aria-label="home.actions">
         <a class="home-action home-action-primary" href="./send/index.html">
-          <span class="home-action-label">Send</span>
-          <span class="home-action-detail">Choose a file and show the QR stream</span>
+          <span class="home-action-label" data-i18n="home.send">Send</span>
+          <span class="home-action-detail" data-i18n="home.sendDetail">Choose a file and show the QR stream</span>
         </a>
         <a class="home-action" href="./receive/index.html">
-          <span class="home-action-label">Receive</span>
-          <span class="home-action-detail">Scan the stream with this device's camera</span>
+          <span class="home-action-label" data-i18n="home.receive">Receive</span>
+          <span class="home-action-detail" data-i18n="home.receiveDetail">Scan the stream with this device's camera</span>
         </a>
       </nav>
-      <p class="hint">
+      <p class="hint" data-i18n="home.explanation">
       No network path between the devices is used — the payload travels as
       light. Fountain coding means the receiver can drop any frames, in any
       order, and still reconstruct the file.
       </p>
     </main>
     <footer class="home-footer">
-      <button class="share-button" id="share-page" type="button">Share</button>
+      <label class="language-picker">
+        <span data-i18n="home.language">Language</span>
+        <select id="language-select">
+          <option value="en">English</option>
+          <option value="ru">Русский</option>
+        </select>
+      </label>
+      <button class="share-button" id="share-page" type="button" data-i18n="home.share">Share</button>
       <span class="share-status" id="share-status" role="status" aria-live="polite"></span>
     </footer>
     <script type="module" src="./shared/register-sw.ts"></script>

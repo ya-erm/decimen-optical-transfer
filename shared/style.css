@@ -82,9 +82,26 @@ body {
 .home-footer {
   min-height: 48px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 7px;
+  gap: 10px 14px;
+}
+.language-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #9a8f76;
+  font-size: 12px;
+}
+.language-picker select {
+  color: #ede5d4;
+  background: #1b1712;
+  border: 1px solid #5b4325;
+  border-radius: 8px;
+  padding: 9px 28px 9px 10px;
+  font: inherit;
 }
 .share-button {
   color: #ede5d4;
@@ -94,6 +111,7 @@ body {
   font-size: 14px;
 }
 .share-status {
+  flex-basis: 100%;
   min-height: 18px;
   color: #9a8f76;
   font-size: 11px;
