@@ -9,6 +9,7 @@
 //   cascade, so blocks-solved looks stalled and then teleports to done.
 
 import { LTDecoder } from "../shared/fountain";
+import { t } from "../shared/i18n";
 import {
   EXPECTED_FOUNTAIN_OVERHEAD,
   estimateTransferProgress,
@@ -50,9 +51,7 @@ async function start() {
   if (!navigator.mediaDevices?.getUserMedia) {
     // On insecure origins the API doesn't exist AT ALL — this is the plain-
     // http-over-LAN case. localhost is exempt; other hosts need https.
-    stats.textContent =
-      "✗ camera needs a secure context — this page must be served over " +
-      "https to use the camera from another device (npm run dev:https).";
+    stats.textContent = `✗ ${t("receive.secureContext")}`;
     return;
   }
   const captureWidth = Number((document.getElementById("cfg-width") as HTMLSelectElement).value);
@@ -80,12 +79,19 @@ async function start() {
       });
     }
   } catch (err) {
-    stats.textContent = `✗ camera: ${err instanceof Error ? err.message : String(err)}`;
+    stats.textContent = `✗ ${t("receive.cameraError", {
+      error: err instanceof Error ? err.message : String(err),
+    })}`;
     return;
   }
   video.srcObject = stream;
   await video.play().catch(() => undefined);
-  stats.textContent = `camera ${stream.getVideoTracks()[0]?.getSettings().width}×${stream.getVideoTracks()[0]?.getSettings().height}@${stream.getVideoTracks()[0]?.getSettings().frameRate} — searching for a stream…`;
+  const camera = stream.getVideoTracks()[0]?.getSettings();
+  stats.textContent = t("receive.searching", {
+    width: camera?.width ?? "—",
+    height: camera?.height ?? "—",
+    fps: camera?.frameRate ?? "—",
+  });
 
   for (let i = 0; i < workerCount; i++) {
     const w = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
@@ -179,10 +185,16 @@ function updateProgressEstimate() {
   const shownPercent = percent < 10 ? percent.toFixed(1) : percent.toFixed(0);
   bar.style.width = `${percent.toFixed(1)}%`;
   progressEl.setAttribute("aria-valuenow", String(Math.floor(percent)));
-  progressLabel.textContent = `${shownPercent}% · ${decoder.solvedCount}/${decoder.k} blocks`;
+  progressLabel.textContent = t("receive.blockProgress", {
+    percent: shownPercent,
+    solved: decoder.solvedCount,
+    total: decoder.k,
+  });
   etaLabel.textContent = estimate.etaSeconds === undefined
-    ? estimate.phase === "decoding" ? `${decoder.framesNew} frames · decoding` : "Estimating time…"
-    : `About ${formatDuration(estimate.etaSeconds)} · ${decoder.framesNew} frames`;
+    ? estimate.phase === "decoding"
+      ? t("receive.decoding", { frames: decoder.framesNew })
+      : t("receive.estimating")
+    : t("receive.about", { time: formatDuration(estimate.etaSeconds), frames: decoder.framesNew });
 }
 
 async function finish(payload: Uint8Array, hashOk: boolean, seconds: number) {
@@ -192,32 +204,35 @@ async function finish(payload: Uint8Array, hashOk: boolean, seconds: number) {
   preview.style.display = "none";
   bar.style.width = "100%";
   progressEl.setAttribute("aria-valuenow", "100");
-  progressLabel.textContent = "100% · file recovered";
-  etaLabel.textContent = `${formatDuration(seconds)} total`;
+  progressLabel.textContent = t("receive.recovered");
+  etaLabel.textContent = t("receive.total", { time: formatDuration(seconds) });
   try {
-    if (!hashOk) throw new Error("The optical stream checksum did not match.");
+    if (!hashOk) throw new Error(t("receive.checksumError"));
     const file = await unpackFile(payload);
-    if (!(await verifyFile(file))) throw new Error("The recovered file failed SHA-256 verification.");
+    if (!(await verifyFile(file))) throw new Error(t("receive.shaError"));
     const rate = (payload.length / 1024 / seconds).toFixed(1);
-    stats.textContent =
-      `${formatBytes(file.bytes.length)} in ${seconds.toFixed(1)} s · ${rate} KB/s · ` +
-      `${file.compression === "gzip" ? "gzip decompressed · " : ""}SHA-256 verified ✓`;
+    stats.textContent = t("receive.successStats", {
+      size: formatBytes(file.bytes.length),
+      seconds: seconds.toFixed(1),
+      rate,
+      compression: file.compression === "gzip" ? t("receive.decompressed") : "",
+    });
     const heading = document.createElement("div");
     heading.className = "done";
-    heading.textContent = "Transfer Complete!";
+    heading.textContent = t("receive.complete");
     const objectUrl = URL.createObjectURL(new Blob([file.bytes as BlobPart], { type: file.type }));
     const download = document.createElement("a");
     download.className = "download";
     download.href = objectUrl;
     download.download = file.name;
-    download.textContent = `Download ${file.name}`;
+    download.textContent = t("receive.download", { name: file.name });
     const details = document.createElement("div");
     details.className = "hint";
     details.textContent = `${file.name} · ${formatBytes(file.bytes.length)} · ${file.type}`;
     const receiveAgain = document.createElement("button");
     receiveAgain.className = "receive-again";
     receiveAgain.type = "button";
-    receiveAgain.textContent = "Receive again";
+    receiveAgain.textContent = t("receive.again");
     receiveAgain.addEventListener("click", () => window.location.reload());
     result.replaceChildren(heading, details, download, receiveAgain);
     if (file.type.startsWith("image/")) {
@@ -233,12 +248,12 @@ async function finish(payload: Uint8Array, hashOk: boolean, seconds: number) {
       videoPreview.controls = true;
       videoPreview.playsInline = true;
       videoPreview.preload = "metadata";
-      videoPreview.setAttribute("aria-label", `Received video preview: ${file.name}`);
+      videoPreview.setAttribute("aria-label", t("receive.videoPreview", { name: file.name }));
       result.append(videoPreview);
     }
   } catch (error) {
     bar.classList.add("error");
-    etaLabel.textContent = "Transfer failed";
+    etaLabel.textContent = t("receive.failed");
     stats.textContent = `✗ ${error instanceof Error ? error.message : String(error)}`;
   }
 }

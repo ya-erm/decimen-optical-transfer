@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Optical Transfer — send</title>
+    <title data-i18n="send.title">Optical Transfer — send</title>
     <meta name="theme-color" content="#121009" />
     <link rel="manifest" href="../manifest.webmanifest" />
     <link rel="icon" href="../icon-v5.png" type="image/png" />
@@ -11,23 +11,23 @@
     <link rel="stylesheet" href="../shared/style.css" />
   </head>
   <body>
-    <a class="back-link" href="../index.html" aria-label="Back to home">← Back</a>
-    <h1>DECIMEN <small>— Fountain QR File Transfer</small></h1>
+    <a class="back-link" href="../index.html" aria-label="Back to home" data-i18n="nav.back" data-i18n-aria-label="nav.backLabel">← Back</a>
+    <h1>DECIMEN <small data-i18n="brand.tagline">— Fountain QR File Transfer</small></h1>
     <label class="file-picker">
-      <span>Choose file</span>
+      <span data-i18n="send.choose">Choose file</span>
       <input id="file-input" type="file" />
     </label>
     <div class="hint">
-      Choose any file or
-      <a class="demo-file-link" id="demo-file" href="../demo-rickroll.mp4">use demo</a>
-      to start the optical stream
+      <span data-i18n="send.promptBefore">Choose any file or</span>
+      <a class="demo-file-link" id="demo-file" href="../demo-rickroll.mp4" data-i18n="send.demo">use demo</a>
+      <span data-i18n="send.promptAfter">to start the optical stream</span>
     </div>
     <div class="hint" id="specs" aria-live="polite"></div>
     <details class="settings">
-      <summary>Settings</summary>
+      <summary data-i18n="send.settings">Settings</summary>
       <div class="row">
         <label>
-          tx fps
+          <span data-i18n="send.txFps">tx fps</span>
           <select id="cfg-fps">
             <option>10</option>
             <option>15</option>
@@ -38,7 +38,7 @@
           </select>
         </label>
         <label>
-          bytes / frame
+          <span data-i18n="send.bytesFrame">bytes / frame</span>
           <select id="cfg-bytes">
             <option>500</option>
             <option>1000</option>
@@ -49,7 +49,7 @@
           </select>
         </label>
         <label>
-          error correction
+          <span data-i18n="send.ecc">error correction</span>
           <select id="cfg-ecc">
             <option selected>L</option>
             <option>M</option>
@@ -58,17 +58,17 @@
           </select>
         </label>
         <label>
-          display size
+          <span data-i18n="send.displaySize">display size</span>
           <input id="cfg-size" type="range" min="300" max="1200" step="50" value="900" />
         </label>
       </div>
-      <div class="hint" style="text-align: left; padding-top: 8px">
+      <div class="hint" style="text-align: left; padding-top: 8px" data-i18n="send.settingsHelp">
         Changes restart the stream — the receiver resets automatically (new
         session id in the frame headers; that's the fountain protocol's gift).
       </div>
     </details>
     <div class="stage" id="stage" hidden><canvas id="qr" width="16" height="16"></canvas></div>
-    <div class="hint">
+    <div class="hint" data-i18n="send.brightness">
       Max screen brightness helps. The stream loops forever — stop when the
       receiver says done.
     </div>

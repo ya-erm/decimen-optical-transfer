@@ -15,6 +15,7 @@
 import QRCode from "qrcode";
 import { fitQrDisplaySize } from "../shared/display";
 import { LTEncoder } from "../shared/fountain";
+import { t } from "../shared/i18n";
 import {
   HEADER_LEN,
   MAX_FILE_BYTES,
@@ -57,7 +58,7 @@ async function selectFile(): Promise<void> {
 
 async function selectDemo(): Promise<void> {
   demoLink.setAttribute("aria-disabled", "true");
-  specs.textContent = "Loading demo video…";
+  specs.textContent = t("send.loadingDemo");
   try {
     const response = await fetch(demoLink.href);
     if (!response.ok) throw new Error(`demo video: HTTP ${response.status}`);
@@ -75,10 +76,10 @@ async function prepareFile(file: File): Promise<void> {
   selectedFile = null;
   stage.hidden = true;
   if (file.size === 0 || file.size > MAX_FILE_BYTES) {
-    specs.textContent = file.size === 0 ? "✗ choose a non-empty file" : "✗ files are limited to 64 MB";
+    specs.textContent = `✗ ${file.size === 0 ? t("send.nonEmpty") : t("send.sizeLimit")}`;
     return;
   }
-  specs.textContent = `Preparing ${file.name}…`;
+  specs.textContent = t("send.preparing", { name: file.name });
   try {
     const bytes = new Uint8Array(await file.arrayBuffer());
     const packed = await packFile(file.name, file.type, bytes);
@@ -131,9 +132,10 @@ async function startStream() {
   const blockLen = frameBytes - HEADER_LEN;
   const k = Math.ceil(payload.length / blockLen);
   if (k > 0xffff) {
-    specs.textContent =
-      `✗ ${selectedFile.name} is too large for this frame size ` +
-      `(maximum ${Math.floor((blockLen * 0xffff) / 1024 / 1024)} MB)`;
+    specs.textContent = `✗ ${t("send.tooLarge", {
+      name: selectedFile.name,
+      max: Math.floor((blockLen * 0xffff) / 1024 / 1024),
+    })}`;
     return;
   }
   stage.hidden = false;
@@ -191,11 +193,18 @@ async function startStream() {
       modules = qr.modules.size;
       sizeCanvas();
       resizeDisplay = sizeCanvas;
-      specs.textContent =
-        `${txFps} FPS · ${frameBytes} bytes per frame · V${version} · ECC ${ecc} · ` +
-        `${name} · ${formatBytes(fileSize)} · ` +
-        `${compression === "gzip" ? `gzip ${formatBytes(transmittedSize)}` : "no compression"} · ` +
-        `K=${encoder.k}`;
+      specs.textContent = t("send.frameInfo", {
+        fps: txFps,
+        bytes: frameBytes,
+        version,
+        ecc,
+        name,
+        size: formatBytes(fileSize),
+        compression: compression === "gzip"
+          ? t("send.gzip", { size: formatBytes(transmittedSize) })
+          : t("send.noCompression"),
+        blocks: encoder.k,
+      });
     }
     const size = qr.modules.size;
     const data = qr.modules.data;
