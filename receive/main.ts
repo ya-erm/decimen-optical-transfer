@@ -214,13 +214,27 @@ async function finish(payload: Uint8Array, hashOk: boolean, seconds: number) {
     const details = document.createElement("div");
     details.className = "hint";
     details.textContent = `${file.name} · ${formatBytes(file.bytes.length)} · ${file.type}`;
-    result.replaceChildren(heading, details, download);
+    const receiveAgain = document.createElement("button");
+    receiveAgain.className = "receive-again";
+    receiveAgain.type = "button";
+    receiveAgain.textContent = "Receive again";
+    receiveAgain.addEventListener("click", () => window.location.reload());
+    result.replaceChildren(heading, details, download, receiveAgain);
     if (file.type.startsWith("image/")) {
       const img = document.createElement("img");
       img.className = "received";
       img.alt = file.name;
       img.src = objectUrl;
       result.append(img);
+    } else if (file.type.startsWith("video/")) {
+      const videoPreview = document.createElement("video");
+      videoPreview.className = "received";
+      videoPreview.src = objectUrl;
+      videoPreview.controls = true;
+      videoPreview.playsInline = true;
+      videoPreview.preload = "metadata";
+      videoPreview.setAttribute("aria-label", `Received video preview: ${file.name}`);
+      result.append(videoPreview);
     }
   } catch (error) {
     bar.classList.add("error");

@@ -33,6 +33,7 @@ const canvas = document.getElementById("qr") as HTMLCanvasElement;
 const stage = document.getElementById("stage")!;
 const specs = document.getElementById("specs")!;
 const fileInput = document.getElementById("file-input") as HTMLInputElement;
+const demoLink = document.getElementById("demo-file") as HTMLAnchorElement;
 const cfgFps = document.getElementById("cfg-fps") as HTMLSelectElement;
 const cfgBytes = document.getElementById("cfg-bytes") as HTMLSelectElement;
 const cfgEcc = document.getElementById("cfg-ecc") as HTMLSelectElement;
@@ -51,6 +52,25 @@ let resizeDisplay: (() => void) | null = null;
 async function selectFile(): Promise<void> {
   const file = fileInput.files?.[0];
   if (!file) return;
+  await prepareFile(file);
+}
+
+async function selectDemo(): Promise<void> {
+  demoLink.setAttribute("aria-disabled", "true");
+  specs.textContent = "Loading demo video…";
+  try {
+    const response = await fetch(demoLink.href);
+    if (!response.ok) throw new Error(`demo video: HTTP ${response.status}`);
+    const blob = await response.blob();
+    await prepareFile(new File([blob], "RickRoll.mp4", { type: blob.type || "video/mp4" }));
+  } catch (error) {
+    specs.textContent = `✗ ${error instanceof Error ? error.message : String(error)}`;
+  } finally {
+    demoLink.removeAttribute("aria-disabled");
+  }
+}
+
+async function prepareFile(file: File): Promise<void> {
   const selectionGeneration = ++generation;
   selectedFile = null;
   stage.hidden = true;
@@ -78,6 +98,10 @@ async function selectFile(): Promise<void> {
 
 async function main() {
   fileInput.addEventListener("change", () => void selectFile());
+  demoLink.addEventListener("click", (event) => {
+    event.preventDefault();
+    if (demoLink.getAttribute("aria-disabled") !== "true") void selectDemo();
+  });
   window.addEventListener("resize", () => resizeDisplay?.());
   for (const el of [cfgFps, cfgBytes, cfgEcc, cfgSize]) {
     el.addEventListener("change", () => void startStream());
@@ -94,7 +118,7 @@ async function startStream() {
   const gen = ++generation;
   resizeDisplay = null;
   if (!selectedFile) {
-    specs.textContent = "Choose any file to start the optical stream";
+    specs.textContent = "";
     return;
   }
   const { name, size: fileSize, payload, compression, transmittedSize } = selectedFile;
