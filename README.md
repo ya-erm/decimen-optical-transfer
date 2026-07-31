@@ -48,6 +48,48 @@ domain that resolves to 127.0.0.1 (same machine, nothing extra running).
 Hold the phone steady, or better, prop it against something. Camera
 autofocus hunting from hand tremor is the #1 throughput killer.
 
+## Send any file
+
+Open the sender and choose a file. Its bytes, original filename, and MIME type
+are wrapped into the fountain stream; the receiver verifies the completed
+payload and offers it as a download. Images also get an inline preview. The
+current protocol stores the source-block count in 16 bits, so the maximum file
+size depends on the selected bytes-per-frame setting (roughly 90 MB at the
+default setting). In practice, much smaller files are a better fit for an
+optical transfer.
+
+## GitHub Pages and PWA
+
+This repository includes `.github/workflows/deploy-pages.yml`. Every push to
+`main` builds the static app and publishes `dist/` with GitHub Pages. In the
+fork, open **Settings → Pages** and set **Source** to **GitHub Actions** once;
+after that, deployments are automatic. The site is served over HTTPS, so both
+camera access and PWA installation work. Relative asset and service-worker URLs
+allow project sites such as `https://USER.github.io/REPOSITORY/` to work without
+hard-coding the fork name.
+
+## Other static hosting
+
+The production output has no server-side runtime and can be hosted from S3:
+
+```bash
+npm run build
+aws s3 sync dist/ s3://YOUR_BUCKET/ --delete
+```
+
+The generated `dist/` directory includes every HTML, JavaScript, CSS, WASM,
+manifest, icon, and service-worker file. Exact `index.html` links are used, so
+the app also works with an S3 REST origin without directory-index rewrites.
+
+Camera access and service workers require HTTPS. An S3 website URL by itself
+is therefore not enough for the receiver: put CloudFront (or another HTTPS
+CDN) in front of the bucket, attach a certificate, and invalidate the
+distribution after a deployment. Configure `index.html`, `sw.js`, and
+`manifest.webmanifest` with short or disabled CDN caching; hashed files under
+`assets/` can be cached immutably. Once visited online, the PWA caches the app
+shell and runtime assets for offline use. The file being transferred always
+stays on the sender and travels only through the animated QR stream.
+
 ## How it works
 
 **The one-way channel problem.** A screen-to-camera link has no back-channel:

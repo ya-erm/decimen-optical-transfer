@@ -9,7 +9,8 @@
 //   cascade, so blocks-solved looks stalled and then teleports to done.
 
 import { LTDecoder } from "../shared/fountain";
-import { fnv1a, parseFrame } from "../shared/protocol";
+import { fnv1a, parseFrame, unpackFile } from "../shared/protocol";
+import "../shared/register-sw";
 
 const OVERHEAD_EST = 1.18; // expected frames ≈ K × this (robust-soliton ε)
 
@@ -175,10 +176,31 @@ function finish(payload: Uint8Array, hashOk: boolean, seconds: number, totalLen:
   const heading = document.createElement("div");
   heading.className = "done";
   heading.textContent = "Transfer Complete!";
-  const img = document.createElement("img");
-  img.className = "received";
-  img.src = URL.createObjectURL(new Blob([payload as BlobPart], { type: "image/png" }));
-  result.append(heading, img);
+  const file = unpackFile(payload);
+  const blob = new Blob([file.bytes as BlobPart], { type: file.type });
+  const objectUrl = URL.createObjectURL(blob);
+  const download = document.createElement("a");
+  download.className = "download";
+  download.href = objectUrl;
+  download.download = file.name;
+  download.textContent = `Download ${file.name}`;
+  const details = document.createElement("div");
+  details.className = "hint";
+  details.textContent = `${file.name} · ${formatBytes(file.bytes.length)} · ${file.type}`;
+  result.append(heading, details, download);
+  if (file.type.startsWith("image/")) {
+    const img = document.createElement("img");
+    img.className = "received";
+    img.alt = file.name;
+    img.src = objectUrl;
+    result.append(img);
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 }
 
 function updateStats() {

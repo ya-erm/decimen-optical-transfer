@@ -15,6 +15,8 @@
 export const HEADER_LEN = 20;
 const MAGIC0 = 0xd1;
 const MAGIC1 = 0x0c;
+const FILE_MAGIC = new Uint8Array([0x44, 0x45, 0x43, 0x46]); // "DECF"
+const FILE_HEADER_LEN = 8;
 
 export interface FrameHeader {
   sessionId: number;
@@ -66,6 +68,58 @@ export function fnv1a(bytes: Uint8Array): number {
     h = Math.imul(h, 0x01000193);
   }
   return h >>> 0;
+}
+
+export interface TransferredFile {
+  name: string;
+  type: string;
+  bytes: Uint8Array;
+}
+
+/** Wrap file bytes with UTF-8 metadata before fountain encoding. */
+export function packFile(file: TransferredFile): Uint8Array {
+  const metadata = new TextEncoder().encode(
+    JSON.stringify({ name: file.name, type: file.type, size: file.bytes.length }),
+  );
+  const out = new Uint8Array(FILE_HEADER_LEN + metadata.length + file.bytes.length);
+  out.set(FILE_MAGIC, 0);
+  new DataView(out.buffer).setUint32(4, metadata.length, true);
+  out.set(metadata, FILE_HEADER_LEN);
+  out.set(file.bytes, FILE_HEADER_LEN + metadata.length);
+  return out;
+}
+
+/** Read the file envelope. Older image-only streams get safe fallback metadata. */
+export function unpackFile(payload: Uint8Array): TransferredFile {
+  const isEnvelope = FILE_MAGIC.every((byte, index) => payload[index] === byte);
+  if (!isEnvelope || payload.length < FILE_HEADER_LEN) {
+    return { name: "received-file.bin", type: "application/octet-stream", bytes: payload };
+  }
+  const metadataLen = new DataView(
+    payload.buffer,
+    payload.byteOffset,
+    payload.byteLength,
+  ).getUint32(4, true);
+  const dataOffset = FILE_HEADER_LEN + metadataLen;
+  if (metadataLen === 0 || dataOffset > payload.length) {
+    return { name: "received-file.bin", type: "application/octet-stream", bytes: payload };
+  }
+  try {
+    const metadata = JSON.parse(
+      new TextDecoder().decode(payload.subarray(FILE_HEADER_LEN, dataOffset)),
+    ) as { name?: unknown; type?: unknown; size?: unknown };
+    const bytes = payload.subarray(dataOffset);
+    if (typeof metadata.name !== "string" || Number(metadata.size) !== bytes.length) {
+      throw new Error("invalid file metadata");
+    }
+    return {
+      name: metadata.name || "received-file.bin",
+      type: typeof metadata.type === "string" ? metadata.type : "application/octet-stream",
+      bytes,
+    };
+  } catch {
+    return { name: "received-file.bin", type: "application/octet-stream", bytes: payload };
+  }
 }
 
 /** splitmix32 — deterministic across JS engines (integer ops only). */
