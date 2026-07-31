@@ -8,19 +8,34 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="stylesheet" href="./shared/style.css" />
   </head>
-  <body>
-    <h1>DECIMEN <small>— Fountain QR File Transfer (PoC)</small></h1>
-    <p class="hint">
+  <body class="home-page">
+    <main class="home-shell">
+      <h1>DECIMEN <small>— Fountain QR File Transfer</small></h1>
+      <p class="hint">
       Send a file between two devices using nothing but a screen and a camera.
-      Open <a href="./send/index.html">send</a> on the device with the file (a laptop is
-      ideal) and <a href="./receive/index.html">receive</a> on a phone, then point the
-      phone's camera at the flickering code.
-    </p>
-    <script type="module" src="./shared/register-sw.ts"></script>
-    <p class="hint">
+      Choose the role of this device.
+      </p>
+      <nav class="home-actions" aria-label="Transfer actions">
+        <a class="home-action home-action-primary" href="./send/index.html">
+          <span class="home-action-label">Send</span>
+          <span class="home-action-detail">Choose a file and show the QR stream</span>
+        </a>
+        <a class="home-action" href="./receive/index.html">
+          <span class="home-action-label">Receive</span>
+          <span class="home-action-detail">Scan the stream with this device's camera</span>
+        </a>
+      </nav>
+      <p class="hint">
       No network path between the devices is used — the payload travels as
       light. Fountain coding means the receiver can drop any frames, in any
       order, and still reconstruct the file.
-    </p>
+      </p>
+    </main>
+    <footer class="home-footer">
+      <button class="share-button" id="share-page" type="button">Share</button>
+      <span class="share-status" id="share-status" role="status" aria-live="polite"></span>
+    </footer>
+    <script type="module" src="./shared/register-sw.ts"></script>
+    <script type="module" src="./shared/navigation.ts"></script>
   </body>
 </html>

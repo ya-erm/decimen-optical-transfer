@@ -1,3 +1,5 @@
+import { gzip, gunzip } from "fflate";
+
 // Frame protocol: every QR frame is fully self-describing, so there is NO
 // handshake — the receiver locks onto a stream mid-flight, and a new session
 // id on any frame simply starts a fresh transfer.
@@ -13,10 +15,13 @@
 //  16  u32  payloadFnv  FNV-1a of the whole file — verified on completion
 
 export const HEADER_LEN = 20;
+export const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAGIC0 = 0xd1;
 const MAGIC1 = 0x0c;
-const FILE_MAGIC = new Uint8Array([0x44, 0x45, 0x43, 0x46]); // "DECF"
-const FILE_HEADER_LEN = 8;
+const FILE_MAGIC = new Uint8Array([0x44, 0x43, 0x46, 0x32]); // "DCF2"
+const FILE_HEADER_LEN = 49;
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 export interface FrameHeader {
   sessionId: number;
@@ -70,56 +75,135 @@ export function fnv1a(bytes: Uint8Array): number {
   return h >>> 0;
 }
 
+export type CompressionMode = "none" | "gzip";
+
+export interface PackedOpticalFile {
+  container: Uint8Array;
+  compression: CompressionMode;
+  originalSize: number;
+  transmittedSize: number;
+}
+
 export interface TransferredFile {
   name: string;
   type: string;
   bytes: Uint8Array;
+  sha256: Uint8Array;
+  compression: CompressionMode;
+  transmittedSize: number;
 }
 
-/** Wrap file bytes with UTF-8 metadata before fountain encoding. */
-export function packFile(file: TransferredFile): Uint8Array {
-  const metadata = new TextEncoder().encode(
-    JSON.stringify({ name: file.name, type: file.type, size: file.bytes.length }),
+async function digest(bytes: Uint8Array): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes)));
+}
+
+function gzipAsync(bytes: Uint8Array): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    gzip(bytes, { level: 9, mem: 12, mtime: 0 }, (error, compressed) => {
+      if (error) reject(error);
+      else resolve(compressed);
+    });
+  });
+}
+
+function gunzipAsync(bytes: Uint8Array): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    gunzip(bytes, (error, decompressed) => {
+      if (error) reject(error);
+      else resolve(decompressed);
+    });
+  });
+}
+
+/** Wrap a file in a versioned, checksummed, optionally compressed container. */
+export async function packFile(
+  name: string,
+  type: string,
+  bytes: Uint8Array,
+): Promise<PackedOpticalFile> {
+  if (bytes.length === 0) throw new Error("Choose a non-empty file.");
+  if (bytes.length > MAX_FILE_BYTES) throw new Error("Files are limited to 64 MB.");
+  const safeName = name.split(/[\\/]/).pop() || "transfer.bin";
+  const nameBytes = textEncoder.encode(safeName);
+  const typeBytes = textEncoder.encode(type || "application/octet-stream");
+  if (nameBytes.length > 0xffff || typeBytes.length > 0xffff) {
+    throw new Error("The file name or media type is too long.");
+  }
+  const [sha256, compressed] = await Promise.all([
+    digest(bytes),
+    bytes.length >= 768 ? gzipAsync(bytes) : Promise.resolve(undefined),
+  ]);
+  const useGzip = compressed !== undefined && compressed.length + 64 < bytes.length;
+  const transmitted = useGzip ? compressed : bytes;
+  const out = new Uint8Array(
+    FILE_HEADER_LEN + nameBytes.length + typeBytes.length + transmitted.length,
   );
-  const out = new Uint8Array(FILE_HEADER_LEN + metadata.length + file.bytes.length);
+  const view = new DataView(out.buffer);
   out.set(FILE_MAGIC, 0);
-  new DataView(out.buffer).setUint32(4, metadata.length, true);
-  out.set(metadata, FILE_HEADER_LEN);
-  out.set(file.bytes, FILE_HEADER_LEN + metadata.length);
-  return out;
+  view.setUint8(4, useGzip ? 1 : 0);
+  view.setUint16(5, nameBytes.length, true);
+  view.setUint16(7, typeBytes.length, true);
+  view.setUint32(9, bytes.length, true);
+  view.setUint32(13, transmitted.length, true);
+  out.set(sha256, 17);
+  out.set(nameBytes, FILE_HEADER_LEN);
+  out.set(typeBytes, FILE_HEADER_LEN + nameBytes.length);
+  out.set(transmitted, FILE_HEADER_LEN + nameBytes.length + typeBytes.length);
+  return {
+    container: out,
+    compression: useGzip ? "gzip" : "none",
+    originalSize: bytes.length,
+    transmittedSize: transmitted.length,
+  };
 }
 
-/** Read the file envelope. Older image-only streams get safe fallback metadata. */
-export function unpackFile(payload: Uint8Array): TransferredFile {
-  const isEnvelope = FILE_MAGIC.every((byte, index) => payload[index] === byte);
-  if (!isEnvelope || payload.length < FILE_HEADER_LEN) {
-    return { name: "received-file.bin", type: "application/octet-stream", bytes: payload };
+export async function unpackFile(container: Uint8Array): Promise<TransferredFile> {
+  if (container.length < FILE_HEADER_LEN) throw new Error("The recovered file header is incomplete.");
+  for (let i = 0; i < FILE_MAGIC.length; i++) {
+    if (container[i] !== FILE_MAGIC[i]) throw new Error("The recovered file header is invalid.");
   }
-  const metadataLen = new DataView(
-    payload.buffer,
-    payload.byteOffset,
-    payload.byteLength,
-  ).getUint32(4, true);
-  const dataOffset = FILE_HEADER_LEN + metadataLen;
-  if (metadataLen === 0 || dataOffset > payload.length) {
-    return { name: "received-file.bin", type: "application/octet-stream", bytes: payload };
+  const view = new DataView(container.buffer, container.byteOffset, container.byteLength);
+  const compressionByte = view.getUint8(4);
+  if (compressionByte > 1) throw new Error("The recovered file uses unsupported compression.");
+  const compression: CompressionMode = compressionByte === 1 ? "gzip" : "none";
+  const nameLength = view.getUint16(5, true);
+  const typeLength = view.getUint16(7, true);
+  const fileLength = view.getUint32(9, true);
+  const transmittedLength = view.getUint32(13, true);
+  const dataOffset = FILE_HEADER_LEN + nameLength + typeLength;
+  if (
+    fileLength === 0 || fileLength > MAX_FILE_BYTES || transmittedLength === 0 ||
+    transmittedLength > MAX_FILE_BYTES || dataOffset + transmittedLength !== container.length
+  ) {
+    throw new Error("The recovered file length does not match its header.");
   }
-  try {
-    const metadata = JSON.parse(
-      new TextDecoder().decode(payload.subarray(FILE_HEADER_LEN, dataOffset)),
-    ) as { name?: unknown; type?: unknown; size?: unknown };
-    const bytes = payload.subarray(dataOffset);
-    if (typeof metadata.name !== "string" || Number(metadata.size) !== bytes.length) {
-      throw new Error("invalid file metadata");
+  const transmitted = container.slice(dataOffset);
+  if (compression === "gzip") {
+    if (transmitted.length < 18) throw new Error("The recovered gzip payload is incomplete.");
+    const trailer = new DataView(
+      transmitted.buffer,
+      transmitted.byteOffset + transmitted.byteLength - 4,
+      4,
+    );
+    if (trailer.getUint32(0, true) !== fileLength) {
+      throw new Error("The gzip payload length does not match its file header.");
     }
-    return {
-      name: metadata.name || "received-file.bin",
-      type: typeof metadata.type === "string" ? metadata.type : "application/octet-stream",
-      bytes,
-    };
-  } catch {
-    return { name: "received-file.bin", type: "application/octet-stream", bytes: payload };
   }
+  const bytes = compression === "gzip" ? await gunzipAsync(transmitted) : transmitted;
+  if (bytes.length !== fileLength) throw new Error("The decompressed file length does not match its header.");
+  return {
+    name: textDecoder.decode(container.subarray(FILE_HEADER_LEN, FILE_HEADER_LEN + nameLength)) || "transfer.bin",
+    type: textDecoder.decode(container.subarray(FILE_HEADER_LEN + nameLength, dataOffset)) || "application/octet-stream",
+    sha256: container.slice(17, 49),
+    bytes,
+    compression,
+    transmittedSize: transmittedLength,
+  };
+}
+
+export async function verifyFile(file: TransferredFile): Promise<boolean> {
+  const actual = await digest(file.bytes);
+  return actual.every((value, index) => value === file.sha256[index]);
 }
 
 /** splitmix32 — deterministic across JS engines (integer ops only). */
