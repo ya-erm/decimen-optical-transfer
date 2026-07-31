@@ -6,6 +6,8 @@
     <title>Optical Transfer — send</title>
     <meta name="theme-color" content="#121009" />
     <link rel="manifest" href="../manifest.webmanifest" />
+    <link rel="icon" href="../icon-v5.png" type="image/png" />
+    <link rel="apple-touch-icon" href="../icon-v5.png" />
     <link rel="stylesheet" href="../shared/style.css" />
   </head>
   <body>
@@ -15,7 +17,12 @@
       <span>Choose file</span>
       <input id="file-input" type="file" />
     </label>
-    <div class="hint" id="specs">Choose any file to start the optical stream</div>
+    <div class="hint">
+      Choose any file or
+      <a class="demo-file-link" id="demo-file" href="../demo-rickroll.mp4">use demo</a>
+      to start the optical stream
+    </div>
+    <div class="hint" id="specs" aria-live="polite"></div>
     <details class="settings">
       <summary>Settings</summary>
       <div class="row">
