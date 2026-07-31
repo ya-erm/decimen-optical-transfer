@@ -6,11 +6,11 @@ device points its camera at it and reconstructs the file. **No network path
 between the devices, no app, no pairing, no permissions beyond the camera.**
 The payload travels as light.
 
-This is a minimal proof of concept extracted from a larger
-experiment that reached **128 KB/s phone-to-phone** with denser frames,
-multi-code grids, and an error-corrected color channel. This PoC keeps only
-the essential trick and transmits a 512 KB image (or a 2 MB one, selectable
-in the sender's settings) at a comfortable rate.
+This is a minimal proof of concept extracted from a larger experiment that
+reached **128 KB/s phone-to-phone** with denser frames, multi-code grids, and
+an error-corrected color channel. This version accepts arbitrary files up to
+64 MB, adaptively compresses them with gzip when useful, and verifies SHA-256
+before offering the received file for download.
 
 <p align="center">
   <img src="docs/receiving.jpg" width="420"
@@ -26,13 +26,12 @@ npm run dev
 ```
 
 - On the **sending** device (a laptop is ideal): open
-  `https://localhost:5173/send/` and it starts streaming immediately. Max
+  `https://localhost:5173/send/`, choose a file, and it starts streaming. Max
   screen brightness helps.
 - On the **receiving** device (a phone): open the `Network` URL Vite prints
   (`https://<lan-ip>:5173/receive/`), accept the certificate warning once,
   tap **Start camera**, and point it at the code.
-- A few seconds later: *Transfer Complete!* and the received image, verified
-  by hash.
+- When recovery completes, save the received file after its SHA-256 check passes.
 
 **Why the dev server is https-only:** the receiver uses `getUserMedia`, and
 browsers remove that API entirely on insecure origins: a phone reaching
@@ -52,11 +51,11 @@ autofocus hunting from hand tremor is the #1 throughput killer.
 
 Open the sender and choose a file. Its bytes, original filename, and MIME type
 are wrapped into the fountain stream; the receiver verifies the completed
-payload and offers it as a download. Images also get an inline preview. The
-current protocol stores the source-block count in 16 bits, so the maximum file
-size depends on the selected bytes-per-frame setting (roughly 90 MB at the
-default setting). In practice, much smaller files are a better fit for an
-optical transfer.
+payload and offers it as a download. Images also get an inline preview. Files
+are limited to 64 MB to keep decompression and the 16-bit fountain block count
+bounded. Compressible inputs are sent as gzip only when that saves meaningful
+space; already-compressed inputs stay raw. In practice, much smaller files are
+a better fit for an optical transfer.
 
 ## GitHub Pages and PWA
 
@@ -129,17 +128,18 @@ mean dropped frames, which the fountain happily absorbs.
   the next one; without a generation counter, every stop/start leaks a
   zombie capture loop.
 - **Progress bars must track frames collected, not blocks solved.** LT
-  peeling back-loads its solve cascade: block-count progress looks stalled
-  for most of the transfer, then teleports to 100%.
+  peeling back-loads its solve cascade. The receiver combines incoming frames
+  with solved blocks for a continuously moving estimate and displays ETA from
+  the observed unique-frame rate; only verified completion reaches 100%.
 - **QR error correction is set to the minimum (L).** In-frame ECC and the
   fountain layer solve different problems (corruption vs erasure), but at
   these frame sizes level L plus frame disposal is the better trade.
 
 ## Tuning
 
-Both pages have a collapsed **Settings** panel. On the sender: payload size
-(512 KB or 2 MB), tx fps, bytes per frame, error-correction level, and
-display size. Changing anything restarts the stream, and the receiver resets
+Both pages have a collapsed **Settings** panel. On the sender: tx fps, bytes
+per frame, error-correction level, and display size. Changing anything restarts
+the stream, and the receiver resets
 automatically off the new session id. On the receiver: capture width,
 capture fps, and decode worker count, applied when the camera starts.
 
