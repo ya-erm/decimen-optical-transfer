@@ -24,6 +24,7 @@ import {
   type FrameHeader,
 } from "../shared/protocol";
 import "../shared/register-sw";
+import "../shared/navigation";
 
 const MARGIN = 4; // quiet-zone modules
 const LOOKAHEAD = 3;

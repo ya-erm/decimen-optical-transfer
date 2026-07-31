@@ -16,6 +16,7 @@ import {
 } from "../shared/progress";
 import { fnv1a, parseFrame, unpackFile, verifyFile } from "../shared/protocol";
 import "../shared/register-sw";
+import "../shared/navigation";
 
 const startBtn = document.getElementById("start") as HTMLButtonElement;
 const video = document.getElementById("video") as HTMLVideoElement;
